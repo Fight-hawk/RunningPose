@@ -1,0 +1,7 @@
+*.pyc
+*.jpg
+*.mp4
+*.avi
+/models/
+/.idea/
+/examples/
