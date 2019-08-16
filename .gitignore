@@ -9,3 +9,4 @@
 /test/
 metrics_x_0_0_1.py
 *.pkl
+*.json
