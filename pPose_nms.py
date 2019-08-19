@@ -287,15 +287,21 @@ def write_json(all_results, outputpath, for_eval=False):
     form = opt.format
     json_results = []
     json_results_cmu = {}
+    start = False
     for im_res in all_results:
+
         im_name = im_res['imgname']
         result = {}
+
         if for_eval:
             result['image_id'] = int(im_name.split('/')[-1].split('.')[0].split('_')[-1])
         else:
             result['image_id'] = int(im_name.split('/')[-1].split('.')[0])
-        if im_res['result'] is None:
-            pass
+
+        if im_res['result'] is None and not start:
+            start = True
+        elif im_res['result'] is None and start:
+            break
         else:
             for human in im_res['result']:
                 keypoints = []

@@ -562,25 +562,30 @@ class DataWriter:
         self.update()
 
     def update(self):
+        started = False
         for i in range(len(self.Q)):
             (boxes, scores, hm_data, pt1, pt2, orig_img, im_name) = self.Q[i]
             orig_img = np.array(orig_img, dtype=np.uint8)
             img = orig_img
             if boxes is None or boxes.nelement() == 0:
+                if started:
+                    break
                 result = {
                     'imgname': im_name,
                     'result': None
                 }
-                self.final_result.append(result)
-                # if opt.save_video:
-                #     self.stream.write(img)
+                # self.final_result.append(result)
             else:
+                started = True
                 preds_hm, preds_img, preds_scores = getPrediction(
                     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
-                # print(preds_scores.shape)
                 for i in self.index:
-                    # print(preds_scores[0][i][0])
                     if preds_scores[0][i][0] < 0.05:
+                        result = {
+                            'imgname': im_name,
+                            'result': None
+                        }
+                        # self.final_result.append(result)
                         break
                 else:
                     result = pose_nms(
