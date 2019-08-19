@@ -1,14 +1,18 @@
 #coding=utf-8
 
 import numpy as np
+import os
 import json
 from locate_key_frame import locate_frame
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 import math
+import ntpath
 import sys
 from collections import deque as dq
 import codecs
+import argparse
+
 '''
 This is a set method evaluate running posture
 '''
@@ -30,11 +34,15 @@ keypoints2index = {
     'neck': 24,
     'upper_neck': 25,
     'head_top': 26
-
 }
 
 
 def cal_angle_v2(x, y):
+    '''
+    :param x:
+    :param y:
+    :return:
+    '''
     a1 = math.atan2(x[1], x[0]) if math.atan2(x[1], x[0]) >= 0 else math.atan2(x[1], x[0]) + 2 * np.pi
     a2 = math.atan2(y[1], y[0]) if math.atan2(y[1], y[0]) >= 0 else math.atan2(y[1], y[0]) + 2 * np.pi
     return (a2 - a1) * 180 / np.pi
@@ -87,10 +95,9 @@ def neutral_position(keypoints, angle_threshold, confidence_threshold=0.05):
     y = upper_neck[:2] - middle_hip[:2]
     angle = cal_angle(x, y)
     return angle, angle > angle_threshold
-    pass
 
 
-def stand_knee(keypoints, angle_threshold, confidence_threshold=0.05):
+def stand_knee(keypoints, confidence_threshold=0.05):
     langle, rangle = 0, 0
     lankle = np.array(keypoints[keypoints2index['lankle']*3: keypoints2index['lankle']*3+3])
     lknee = np.array(keypoints[keypoints2index['lknee']*3: keypoints2index['lknee']*3+3])
@@ -158,7 +165,7 @@ def leg_angle(keypoints, angle_threshold=25, confidence_threshold=0.05, support_
 
 
 
-def stand_point(keypoints, left=True, angle_threshold=70, confidence_threshold=0.05):
+def stand_point(keypoints, left=True, angle_threshold=70):
     if left:
         lhip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
         lankle = np.array(keypoints[keypoints2index['lankle']*3: keypoints2index['lankle']*3+3])
@@ -213,7 +220,6 @@ def draw(keypoints, frame):
         cor_x, cor_y = int(keypoints[value*3]), int(keypoints[value*3+1])
         part_line[value] = (cor_x, cor_y)
         cv2.circle(frame, (cor_x, cor_y), 4, p_color[n], -1)
-        # cv2.circle(black_img, (cor_x, cor_y), 4, p_color[n], -1)
     # Draw limbs
     for i, (start_p, end_p) in enumerate(l_pair):
             if start_p in part_line and end_p in part_line:
@@ -246,15 +252,23 @@ def cal_x_var(x, max_len):
     return x_var
 
 
+def parse_arg():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--video_path', default='', type=str, help='path of the input video')
+    parser.add_argument('-j', '--json_path', default='', type=str, help='path of the input json file')
+    parser.add_argument('-o', '--output_dir', default='./output', type=str, help='direction to save output video')
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    name = 'xuchenkuai_20190813_125415'
-    video_path = '/Users/kanhaipeng/Downloads/result/{}.mp4'.format(name)
+    args = parse_arg()
+    video_path = args.video_path
     finished = False
     num_keypoints = 33
     font_size = 30
     blue = (255, 255, 0)
     red = (255, 0, 0)
-    with codecs.open('/Users/kanhaipeng/Downloads/result/{}.json'.format(name), 'r', encoding='utf-8') as r:
+    with codecs.open(args.json_path, 'r', encoding='utf-8') as r:
         data = json.load(r)
     read_stream = cv2.VideoCapture(video_path)
     assert read_stream.isOpened(), 'can not open the video!'
@@ -266,23 +280,23 @@ if __name__ == '__main__':
         keypoint_data.append({})
 
     for i, result in enumerate(data):
-        # print(i)
         if result['keypoints'] is None:
             continue
         for j in range(num_keypoints):
             if result['keypoints'][j * 3 + 2] > 0.05:
                 keypoint_data[j][i] = (result['keypoints'][j * 3], -result['keypoints'][j * 3 + 1])
-    # foot_stand_frame_indexes = locate_frame(l_ankle_x_list, l_ankle_y_list, r_ankle_x_list, r_ankle_y_list, l_knee_x_list, r_knee_x_list)
     foot_stand_frame_indexes = locate_frame(keypoint_data, len(data))
     left_foot_stand_frame_indexes = foot_stand_frame_indexes[0]
     right_foot_stand_frame_indexes = foot_stand_frame_indexes[1]
     frameSize = (int(read_stream.get(cv2.CAP_PROP_FRAME_WIDTH)), int(read_stream.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     lindex = 0
     rindex = 0
-    finished = False
-    cross_middle = False
-    max_len, var_threshold = maxlen_and_threshold(fps=fps)
-    write_steam = cv2.VideoWriter('./examples/res/{}.mp4'.format(name), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), fps, frameSize)
+
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    write_steam = cv2.VideoWriter(os.path.join(args.output_dir, ntpath.basename(args.video_path).split('.')[0] + '.mp4'), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), fps, frameSize)
+    assert write_steam.isOpened(), 'can not open video'
+
     cv2.namedWindow('running', cv2.WINDOW_NORMAL)
     stand_knee_list = []
     hip_angle_list = []
@@ -296,12 +310,10 @@ if __name__ == '__main__':
 
             # 中立位角
             anlge, flag = neutral_position(data[i]['keypoints'], angle_threshold=10)
-            if anlge is not None:
-                if flag:
-                    frame = put_text(frame, '中立位角:%.2f, 前倾过度' % anlge, (20, 20), font_size, red)
-                else:
-                    frame = put_text(frame, '中立位角:%.2f' % anlge, (20, 20), font_size, blue)
-
+            if flag:
+                frame = put_text(frame, '中立位角:%.2f, 前倾过度' % anlge, (20, 20), font_size, red)
+            else:
+                frame = put_text(frame, '中立位角:%.2f' % anlge, (20, 20), font_size, blue)
 
             # 髋关节灵活性
             angle, flag = hip_flexibility(keypoints=data[i]['keypoints'])
@@ -309,27 +321,20 @@ if __name__ == '__main__':
             frame = put_text(frame, '髋关节角: %.2f, 最大值: %.2f' % (angle, max(hip_angle_list)), (20, 80), font_size, blue)
 
             if len(left_foot_stand_frame_indexes) > 0 and i >= left_foot_stand_frame_indexes[lindex][0] -5 and i < left_foot_stand_frame_indexes[lindex][0]:
-                langle, rangle = stand_knee(keypoints=data[i]['keypoints'], angle_threshold=165)
+                langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
                 frame = put_text(frame, '落地伸膝角: %.2f %s' % (langle, '过大' if langle > 165 else ''), (20, 50), font_size, red if langle > 165 else blue)
                 stand_knee_list.append(langle)
+
             if len(left_foot_stand_frame_indexes) > 0 and left_foot_stand_frame_indexes[lindex][0] <= i and left_foot_stand_frame_indexes[lindex][1] >= i :
-                llength = left_foot_stand_frame_indexes[lindex][1] - left_foot_stand_frame_indexes[lindex][0] + 1
-                lmid = llength / 3
-                if llength % 3 == 1:
-                    lmid += 1
-                lleft = (llength - lmid)/2
-                lmid += lleft
-                lj = i - left_foot_stand_frame_indexes[lindex][0]
-                if lj < lleft:
-                    frame = put_text(frame, '左脚落地', (20, 110), font_size, red)
-                elif lj < lmid:
-                    frame = put_text(frame, '左脚落地', (20, 110), font_size, red)
-                else:
-                    frame = put_text(frame, '左脚落地', (20, 110), font_size, red)
+
+                frame = put_text(frame, '左脚落地', (20, 110), font_size, red)
+
                 if i == left_foot_stand_frame_indexes[lindex][0]:
-                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'], angle_threshold=165)
+                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+                    stand_knee_list.append(langle)
                     frame = put_text(frame, '落地伸膝角: %.2f %s, 最大值: %.2f' % (langle, '过大' if langle > 165 else '', max(stand_knee_list)), (20, 50), font_size, red if langle > 165 else blue)
                     stand_knee_list = []
+
                 if i == left_foot_stand_frame_indexes[lindex][2]:
                     angle, flag = leg_angle(data[i]['keypoints'], angle_threshold=25, support_leg='left')
 
@@ -341,33 +346,24 @@ if __name__ == '__main__':
                     frame = put_text(frame, '落地角:%.2f' % angle, (20, 170), font_size, red)
                     if not flag_:
                         frame = put_text(frame, '落地角:%.2f, 落地点靠前' % angle, (20, 170), font_size, red)
-                if lj == llength - 1 and lindex < len(left_foot_stand_frame_indexes) - 1:
+                if i == left_foot_stand_frame_indexes[lindex][1] and lindex < len(left_foot_stand_frame_indexes) - 1:
                     lindex += 1
 
-
             if len(right_foot_stand_frame_indexes) > 0 and i >= right_foot_stand_frame_indexes[rindex][0] -5 and i < right_foot_stand_frame_indexes[rindex][0]:
-                langle, rangle = stand_knee(keypoints=data[i]['keypoints'], angle_threshold=165)
+                langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
                 frame = put_text(frame, '落地伸膝角: %.2f %s' % (rangle, '过大' if rangle > 165 else ''), (20, 50), font_size, red if rangle > 165 else blue)
                 stand_knee_list.append(rangle)
 
             if len(right_foot_stand_frame_indexes) > 0 and right_foot_stand_frame_indexes[rindex][0] <= i and right_foot_stand_frame_indexes[rindex][1] >= i:
-                rlength = right_foot_stand_frame_indexes[rindex][1] - right_foot_stand_frame_indexes[rindex][0] + 1
-                rmid = rlength / 3
-                if rlength % 3 == 1:
-                    rmid += 1
-                rleft = (rlength - rmid)/2
-                rmid += rleft
-                rj = i - right_foot_stand_frame_indexes[rindex][0]
-                if rj < rleft:
-                    frame = put_text(frame, '右脚落地', (20, 110), font_size, red)
-                elif rj < rmid:
-                    frame = put_text(frame, '右脚落地', (20, 110), font_size, red)
-                else:
-                    frame = put_text(frame, '右脚落地', (20, 110), font_size, red)
+
+                frame = put_text(frame, '右脚落地', (20, 110), font_size, red)
+
                 if i == right_foot_stand_frame_indexes[rindex][0]:
-                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'], angle_threshold=165)
+                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+                    stand_knee_list.append(rangle)
                     frame = put_text(frame, '落地伸膝角: %.2f %s, 最大值: %.2f' % (rangle, '过大' if rangle > 165 else '', max(stand_knee_list)), (20, 50), font_size, red if rangle > 165 else blue)
                     stand_knee_list = []
+
                 if i == right_foot_stand_frame_indexes[rindex][2]:
                     angle, flag = leg_angle(data[i]['keypoints'], angle_threshold=25, support_leg='right')
                     if flag:
@@ -378,11 +374,12 @@ if __name__ == '__main__':
                     frame = put_text(frame, '落地角:%.2f' % angle, (20, 170), font_size, red)
                     if not flag_:
                         frame = put_text(frame, '落地角:%.2f, 落地点靠前' % angle, (20, 170), font_size, red)
-                if rj == rlength - 1 and rindex < len(right_foot_stand_frame_indexes) - 1:
+                if i == right_foot_stand_frame_indexes[rindex][1] and rindex < len(right_foot_stand_frame_indexes) - 1:
                     rindex += 1
 
             # 球棍模型
             draw(keypoints=data[i]['keypoints'], frame=frame)
+
             # 帧号
             frame = put_text(frame, '帧号:%d' % i, (20, 200), font_size, blue)
             cv2.imshow('running', frame)
