@@ -115,7 +115,7 @@ def locate(zone,length,ankle,knee):
     for i in range(len(ranges)):
         minx = 100000
         minindex = -1
-        for j in range(ranges[i][0],ranges[i][1] + 1):
+        for j in range(ranges[i][0], ranges[i][1] + 1):
             if j in ankle and j in knee:
                 dx = ankle[j][0] - knee[j][0]
                 if dx < 0:
@@ -125,8 +125,9 @@ def locate(zone,length,ankle,knee):
             if dx < minx:
                 minx = dx
                 minindex = j
-        result.append((ranges[i][0],ranges[i][1],minindex))
+        result.append((ranges[i][0], ranges[i][1], minindex))
     return result
+
 
 def locate_frame(keypoint_data,length):
     if(length == 0):

@@ -16,6 +16,13 @@ parser.add_argument('--snapshot', default=1, type=int,
                     help='How often to take a snapshot of the model (0 = never)')
 parser.add_argument('--device', default='GPU', type=str,
                     help='CPU or GPU')
+parser.add_argument('--addFilter', default=False, action='store_true',
+                    help='filter low confidence keypoints')
+parser.add_argument('--flip', default=False, action='store_true',
+                    help='flip video')
+parser.add_argument('--resize', default=False, action='store_true',
+                    help='resize video')
+
 
 "----------------------------- AlphaPose options -----------------------------"
 parser.add_argument('--addDPG', default=False, type=bool,
