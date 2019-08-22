@@ -197,6 +197,10 @@ class VideoLoader:
                 if not grabbed:
                     return
                 # process and add the frame to the queue
+                if opt.resize:
+                    frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
+                if opt.flip:
+                    frame = cv2.flip(frame, flipCode=1)
                 img_k, orig_img_k, im_dim_list_k = prep_frame(frame, inp_dim)
             
                 img.append(img_k)
@@ -216,7 +220,7 @@ class VideoLoader:
         # stream = cv2.VideoCapture(self.path)
         fourcc=int(self.stream.get(cv2.CAP_PROP_FOURCC))
         fps=self.stream.get(cv2.CAP_PROP_FPS)
-        frameSize=(int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)),int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        frameSize=(int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)) // 2, int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT)) // 2)
         return (fourcc,fps,frameSize)
 
     def getitem(self):
@@ -580,12 +584,7 @@ class DataWriter:
                 preds_hm, preds_img, preds_scores = getPrediction(
                     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
                 for i in self.index:
-                    if preds_scores[0][i][0] < 0.05:
-                        result = {
-                            'imgname': im_name,
-                            'result': None
-                        }
-                        # self.final_result.append(result)
+                    if preds_scores[0][i][0] < 0.05 and opt.addFilter:
                         break
                 else:
                     result = pose_nms(
