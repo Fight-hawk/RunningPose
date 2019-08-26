@@ -214,7 +214,6 @@ def draw(keypoints, frame):
     part_line = {}
     # Draw keypoints
     for n, value in enumerate(keypoints2index.values()):
-        # print(keypoints[value*3+2])
         if keypoints[value*3+2] < 0.05:
             continue
         cor_x, cor_y = int(keypoints[value*3]), int(keypoints[value*3+1])
@@ -228,16 +227,22 @@ def draw(keypoints, frame):
                 cv2.line(frame, start_xy, end_xy, line_color[i],  3)
 
 
-def maxlen_and_threshold(fps):
-    if fps <= 30:
-        return 5, 10
-    elif fps > 30 and fps <= 45:
-        return 5, 50
-    elif fps > 45 and fps <= 55:
-        return 7
-    else:
-        return 9, 50
+class KalmanTracker:
+    def __init__(self, measurementMatDim, transitionMatDim):
+        self.kalman = cv2.KalmanFilter(measurementMatDim, transitionMatDim)
+        self.kalman.measurementMatrix = np.array([[1, 0], [0, 1]], np.float32)
+        self.kalman.transitionMatrix = np.array([[1, 0], [0, 1]], np.float32)
+        self.kalman.measurementNoiseCov = np.array([[1, 0], [0, 1]], np.float32) * 0.03
 
+    def track(self, x, y):
+        current_measurement = np.array([[np.float32(x)], [np.float32(y)]])
+        self.kalman.correct(current_measurement)
+        current_prediction = self.kalman.predict()
+        return current_prediction[0], current_prediction[1]
+
+    def correct(self, x, y):
+        current_measurement = np.array([[np.float32(x)], [np.float32(y)]])
+        self.kalman.correct(current_measurement)
 
 
 def cal_x_var(x, max_len):
@@ -254,6 +259,7 @@ def cal_x_var(x, max_len):
 
 def parse_arg():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-k', '--kalman_filter', default=False, action='store_true', help='add kalman filter to all data')
     parser.add_argument('-v', '--video_path', default='', type=str, help='path of the input video')
     parser.add_argument('-j', '--json_path', default='', type=str, help='path of the input json file')
     parser.add_argument('-o', '--output_dir', default='./output', type=str, help='direction to save output video')
@@ -263,13 +269,19 @@ def parse_arg():
 if __name__ == '__main__':
     args = parse_arg()
     video_path = args.video_path
-    finished = False
     num_keypoints = 33
     font_size = 30
     blue = (255, 255, 0)
     red = (255, 0, 0)
     with codecs.open(args.json_path, 'r', encoding='utf-8') as r:
         data = json.load(r)
+    if args.kalman_filter:
+        trackers = {}
+        for key in keypoints2index.keys():
+            trackers[key] = KalmanTracker(2, 2)
+        skipNo = 0
+        skipIndex = 0
+
     read_stream = cv2.VideoCapture(video_path)
     assert read_stream.isOpened(), 'can not open the video!'
     length = int(read_stream.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -282,6 +294,15 @@ if __name__ == '__main__':
     for i, result in enumerate(data):
         if result['keypoints'] is None:
             continue
+        if args.kalman_filter:
+            for key, value in keypoints2index.items():
+                if result['keypoints'][value * 3 + 2] > 0.05:
+                    x, y = trackers[key].track(result['keypoints'][value * 3],
+                                               result['keypoints'][value * 3 + 1])
+                    if skipIndex < skipNo * 16:
+                        skipIndex += 1
+                    else:
+                        data[i]['keypoints'][value*3], data[i]['keypoints'][value*3+1] = x[0], y[0]
         for j in range(num_keypoints):
             if result['keypoints'][j * 3 + 2] > 0.05:
                 keypoint_data[j][i] = (result['keypoints'][j * 3], -result['keypoints'][j * 3 + 1])
