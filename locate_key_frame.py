@@ -1,12 +1,6 @@
-import json
-import os
 import matplotlib
 import math
 matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy import signal
-import cv2
 
 """Detect peaks in data based on their amplitude and other features."""
 
@@ -30,6 +24,7 @@ keypoints2index = {
 
 }
 
+
 def merge(list):
     res = []
     if(len(list) <= 0):
@@ -52,6 +47,7 @@ def merge(list):
                 res.append(l)
             l = []
     return res
+
 
 def locate_zone(data,length):
     lenlist = []
@@ -129,7 +125,7 @@ def locate(zone,length,ankle,knee):
     return result
 
 
-def locate_frame(keypoint_data,length):
+def locate_frame(keypoint_data, length):
     if(length == 0):
         return []
     left = locate_zone(keypoint_data[keypoints2index['lankle']],length)

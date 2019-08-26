@@ -18,8 +18,8 @@ This is a set method evaluate running posture
 '''
 
 keypoints2index = {
-    'lshouder': 5,
-    'rshouder': 6,
+    'lshoulder': 5,
+    'rshoulder': 6,
     'lelbow': 7,
     'relbow': 8,
     'lwrist': 9,
@@ -84,9 +84,9 @@ def neutral_position(keypoints, angle_threshold, confidence_threshold=0.05):
     :return: angle between head and body.
     '''
     # get three keypoints {head_top, middel_hip, upper_neck}
-    head_top = np.array(keypoints[keypoints2index['head_top']*3: keypoints2index['head_top']*3+3])
-    middle_hip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
-    upper_neck = np.array(keypoints[keypoints2index['upper_neck']*3: keypoints2index['upper_neck']*3+3])
+    head_top = get_coordinate(keypoints, 'head_top')
+    middle_hip = get_coordinate(keypoints, 'middle_hip')
+    upper_neck = get_coordinate(keypoints, 'upper_neck')
     if head_top[-1] <= confidence_threshold or \
         middle_hip[-1] <= confidence_threshold or\
             upper_neck[-1] < confidence_threshold:
@@ -99,12 +99,12 @@ def neutral_position(keypoints, angle_threshold, confidence_threshold=0.05):
 
 def stand_knee(keypoints, confidence_threshold=0.05):
     langle, rangle = 0, 0
-    lankle = np.array(keypoints[keypoints2index['lankle']*3: keypoints2index['lankle']*3+3])
-    lknee = np.array(keypoints[keypoints2index['lknee']*3: keypoints2index['lknee']*3+3])
-    lhip = np.array(keypoints[keypoints2index['lhip']*3: keypoints2index['lhip']*3+3])
-    rankle = np.array(keypoints[keypoints2index['rankle']*3: keypoints2index['rankle']*3+3])
-    rknee = np.array(keypoints[keypoints2index['rknee']*3: keypoints2index['rknee']*3+3])
-    rhip = np.array(keypoints[keypoints2index['rhip']*3: keypoints2index['rhip']*3+3])
+    lankle = get_coordinate(keypoints, 'lankle')
+    lknee = get_coordinate(keypoints, 'lknee')
+    lhip = get_coordinate(keypoints, 'lhip')
+    rankle = get_coordinate(keypoints, 'rankle')
+    rknee = get_coordinate(keypoints, 'rknee')
+    rhip = get_coordinate(keypoints, 'rhip')
     if lankle[-1] > confidence_threshold and lknee[-1] > confidence_threshold and lhip[-1] > confidence_threshold:
         langle = cal_angle(lhip[:2] - lknee[:2], lankle[:2] - lknee[:2])
     if rankle[-1] > confidence_threshold and rknee[-1] > confidence_threshold and rhip[-1] > confidence_threshold:
@@ -115,34 +115,26 @@ def stand_knee(keypoints, confidence_threshold=0.05):
 def step_frequency(stand_frame_indexes, fps=42):
     return (len(stand_frame_indexes)-1)/(abs(stand_frame_indexes[0][1]-stand_frame_indexes[-1][1])/fps)*60
 
-def swing_arm(keypoints, threshold=0, confidence_threshold=0.05):
-    lwrist = np.array(keypoints[keypoints2index['lwrist']*3: keypoints2index['lwrist']*3+3])
-    lelbow = np.array(keypoints[keypoints2index['lelbow']*3: keypoints2index['lelbow']*3+3])
-    rwrist = np.array(keypoints[keypoints2index['rwrist']*3: keypoints2index['rwrist']*3+3])
-    relbow = np.array(keypoints[keypoints2index['relbow']*3: keypoints2index['relbow']*3+3])
-    upper_neck = np.array(keypoints[keypoints2index['upper_neck']*3: keypoints2index['upper_neck']*3+3])
-    middle_hip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
-    if lwrist[-1] > confidence_threshold and lelbow[-1] > confidence_threshold \
-        and upper_neck[-1] > confidence_threshold and middle_hip[-1] > confidence_threshold:
-        if lwrist[0] > middle_hip[0] + threshold:
-            return True
-        if lelbow[0] < middle_hip[0] - threshold:
-            return True
-    if rwrist[-1] > confidence_threshold and relbow[-1] > confidence_threshold \
-        and upper_neck[-1] > confidence_threshold and middle_hip[-1] > confidence_threshold:
-        if rwrist[0] > middle_hip[0] + threshold:
-            return True
-        if lelbow[0] < middle_hip[0] - threshold:
-            return True
-    return False
+
+def get_coordinate(keypoints, name):
+    return np.array(keypoints[keypoints2index[name]*3: keypoints2index[name]*3+3])
+
+
+def swing_arm(keypoints, confidence_threshold=0.05):
+    lwrist = get_coordinate(keypoints, 'lwrist')
+    lelbow = get_coordinate(keypoints, 'lelbow')
+    lshoulder = get_coordinate(keypoints, 'lshoulder')
+    if lwrist[-1] > confidence_threshold and lelbow[-1] > confidence_threshold and lshoulder[-1] > confidence_threshold:
+        angle = cal_angle(lshoulder[:2] - lelbow[:2], lwrist[:2] - lelbow[:2])
+    return 0 if angle is None else angle
 
 
 def hip_flexibility(keypoints, angle_threshold=70, confidence_threshold=0.05):
     angle = 0
-    lhip = np.array(keypoints[keypoints2index['lhip']*3: keypoints2index['lhip']*3+3])
-    lknee = np.array(keypoints[keypoints2index['lknee']*3: keypoints2index['lknee']*3+3])
-    rhip =np.array(keypoints[keypoints2index['rhip']*3: keypoints2index['rhip']*3+3])
-    rknee = np.array(keypoints[keypoints2index['rknee']*3: keypoints2index['rknee']*3+3])
+    lhip = get_coordinate(keypoints, 'lhip')
+    lknee = get_coordinate(keypoints, 'lknee')
+    rhip = get_coordinate(keypoints, 'rhip')
+    rknee = get_coordinate(keypoints, 'rknee')
     if lhip[-1] > confidence_threshold and lknee[-1] > confidence_threshold and rhip[-1] > confidence_threshold and rknee[-1] > confidence_threshold:
         angle = cal_angle(lknee[:2]-lhip[:2], rknee[:2]-rhip[:2])
     return angle, angle > angle_threshold
@@ -150,10 +142,10 @@ def hip_flexibility(keypoints, angle_threshold=70, confidence_threshold=0.05):
 
 def leg_angle(keypoints, angle_threshold=25, confidence_threshold=0.05, support_leg='left'):
     result = (0, False)
-    lhip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
-    lknee = np.array(keypoints[keypoints2index['lknee']*3: keypoints2index['lknee']*3+3])
-    rhip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
-    rknee = np.array(keypoints[keypoints2index['rknee']*3: keypoints2index['rknee']*3+3])
+    lhip = get_coordinate(keypoints, 'lhip')
+    lknee = get_coordinate(keypoints, 'lknee')
+    rhip = get_coordinate(keypoints, 'rhip')
+    rknee = get_coordinate(keypoints, 'rknee')
     if lhip[-1] > confidence_threshold and lknee[-1] > confidence_threshold \
         and rhip[-1] > confidence_threshold and rknee[-1] > confidence_threshold:
         if support_leg == 'right':
@@ -180,17 +172,17 @@ def stand_point(keypoints, left=True, angle_threshold=70):
 
 def vertical_amplitude(keypoints, confidence_threshold=0.05):
     result = {'left': None, 'right': None}
-    lshouder = np.array(keypoints[keypoints2index['lshouder']*3: keypoints2index['lshouder']*3+3])
-    lelbow = np.array(keypoints[keypoints2index['lelbow']*3: keypoints2index['lelbow']*3+3])
-    lwrist = np.array(keypoints[keypoints2index['lwrist']*3: keypoints2index['lwrist']*3+3])
-    rshouder = np.array(keypoints[keypoints2index['rshouder']*3: keypoints2index['rshouder']*3+3])
-    relbow = np.array(keypoints[keypoints2index['relbow']*3: keypoints2index['relbow']*3+3])
-    rwrist = np.array(keypoints[keypoints2index['rwrist']*3: keypoints2index['rwrist']*3+3])
-    if lshouder[-1] > confidence_threshold and lelbow[-1] > confidence_threshold and lwrist[-1] > confidence_threshold:
-        angle = cal_angle(lshouder[:2]-lelbow[:2], lwrist[:2]-lelbow[:2])
+    lshoulder = get_coordinate(keypoints, 'lshoulder')
+    lelbow = get_coordinate(keypoints, 'rshoulder')
+    lwrist = get_coordinate(keypoints, 'lwrist')
+    rshoulder = get_coordinate(keypoints, 'rshoulder')
+    relbow = get_coordinate(keypoints, 'relbow')
+    rwrist = get_coordinate(keypoints, 'rwrist')
+    if lshoulder[-1] > confidence_threshold and lelbow[-1] > confidence_threshold and lwrist[-1] > confidence_threshold:
+        angle = cal_angle(lshoulder[:2]-lelbow[:2], lwrist[:2]-lelbow[:2])
         result['left'] = angle
-    if rshouder[-1] > confidence_threshold and relbow[-1] > confidence_threshold and rwrist[-1] > confidence_threshold:
-        angle = cal_angle(rshouder[:2]-relbow[:2], rwrist[:2]-relbow[:2])
+    if rshoulder[-1] > confidence_threshold and relbow[-1] > confidence_threshold and rwrist[-1] > confidence_threshold:
+        angle = cal_angle(rshoulder[:2]-relbow[:2], rwrist[:2]-relbow[:2])
         result['right'] = angle
     return result
 
@@ -214,7 +206,6 @@ def draw(keypoints, frame):
     part_line = {}
     # Draw keypoints
     for n, value in enumerate(keypoints2index.values()):
-        # print(keypoints[value*3+2])
         if keypoints[value*3+2] < 0.05:
             continue
         cor_x, cor_y = int(keypoints[value*3]), int(keypoints[value*3+1])
@@ -228,16 +219,22 @@ def draw(keypoints, frame):
                 cv2.line(frame, start_xy, end_xy, line_color[i],  3)
 
 
-def maxlen_and_threshold(fps):
-    if fps <= 30:
-        return 5, 10
-    elif fps > 30 and fps <= 45:
-        return 5, 50
-    elif fps > 45 and fps <= 55:
-        return 7
-    else:
-        return 9, 50
+class KalmanTracker:
+    def __init__(self, measurementMatDim, transitionMatDim):
+        self.kalman = cv2.KalmanFilter(measurementMatDim, transitionMatDim)
+        self.kalman.measurementMatrix = np.array([[1, 0], [0, 1]], np.float32)
+        self.kalman.transitionMatrix = np.array([[1, 0], [0, 1]], np.float32)
+        self.kalman.measurementNoiseCov = np.array([[1, 0], [0, 1]], np.float32) * 0.03
 
+    def track(self, x, y):
+        current_measurement = np.array([[np.float32(x)], [np.float32(y)]])
+        self.kalman.correct(current_measurement)
+        current_prediction = self.kalman.predict()
+        return current_prediction[0], current_prediction[1]
+
+    def correct(self, x, y):
+        current_measurement = np.array([[np.float32(x)], [np.float32(y)]])
+        self.kalman.correct(current_measurement)
 
 
 def cal_x_var(x, max_len):
@@ -254,6 +251,7 @@ def cal_x_var(x, max_len):
 
 def parse_arg():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-k', '--kalman_filter', default=False, action='store_true', help='add kalman filter to all data')
     parser.add_argument('-v', '--video_path', default='', type=str, help='path of the input video')
     parser.add_argument('-j', '--json_path', default='', type=str, help='path of the input json file')
     parser.add_argument('-o', '--output_dir', default='./output', type=str, help='direction to save output video')
@@ -263,13 +261,19 @@ def parse_arg():
 if __name__ == '__main__':
     args = parse_arg()
     video_path = args.video_path
-    finished = False
     num_keypoints = 33
     font_size = 30
     blue = (255, 255, 0)
     red = (255, 0, 0)
     with codecs.open(args.json_path, 'r', encoding='utf-8') as r:
         data = json.load(r)
+    if args.kalman_filter:
+        trackers = {}
+        for key in keypoints2index.keys():
+            trackers[key] = KalmanTracker(2, 2)
+        skipNo = 0
+        skipIndex = 0
+
     read_stream = cv2.VideoCapture(video_path)
     assert read_stream.isOpened(), 'can not open the video!'
     length = int(read_stream.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -282,6 +286,15 @@ if __name__ == '__main__':
     for i, result in enumerate(data):
         if result['keypoints'] is None:
             continue
+        if args.kalman_filter:
+            for key, value in keypoints2index.items():
+                if result['keypoints'][value * 3 + 2] > 0.05:
+                    x, y = trackers[key].track(result['keypoints'][value * 3],
+                                               result['keypoints'][value * 3 + 1])
+                    if skipIndex < skipNo * 16:
+                        skipIndex += 1
+                    else:
+                        data[i]['keypoints'][value*3], data[i]['keypoints'][value*3+1] = x[0], y[0]
         for j in range(num_keypoints):
             if result['keypoints'][j * 3 + 2] > 0.05:
                 keypoint_data[j][i] = (result['keypoints'][j * 3], -result['keypoints'][j * 3 + 1])
@@ -301,6 +314,10 @@ if __name__ == '__main__':
     stand_knee_list = []
     stand_point_list = []
     hip_angle_list = []
+
+    max_shoulder_angle = 0
+    min_shoulder_angle = 180
+
     for i in range(length):
         ret, frame = read_stream.read()
         if not ret:
@@ -309,6 +326,16 @@ if __name__ == '__main__':
             break
         if data[i]['keypoints'] is not None:
 
+            # 最大伸肩角、最小曲肩角
+            '''
+            暂时 放弃 摆臂角度受手腕的高度影响，不准确
+            angle = swing_arm(data[i]['keypoints'])
+            if angle != 0:
+                frame = put_text(frame, '最大伸肩角:%.2f %s' % (max(max_shoulder_angle, angle), '摆臂靠前' if max(max_shoulder_angle, angle) > 90 else ''), (20, 230), font_size, red if max(max_shoulder_angle, angle) > 90 else blue)
+                max_shoulder_angle = max(max_shoulder_angle, angle)
+                frame = put_text(frame, '最小曲肩角:%.2f %s' % (min(min_shoulder_angle, angle), '摆臂靠后' if min(min_shoulder_angle, angle) < 20 else ''), (20, 260), font_size, red if min(max_shoulder_angle, angle) < 20 else blue)
+                min_shoulder_angle = min(min_shoulder_angle, angle)
+            '''
             # 中立位角
             anlge, flag = neutral_position(data[i]['keypoints'], angle_threshold=10)
             if flag:
