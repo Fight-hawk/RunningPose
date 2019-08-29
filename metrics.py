@@ -75,7 +75,7 @@ def put_text(img, text, location, font_size, color):
     return image
 
 
-def neutral_position(keypoints, angle_threshold, confidence_threshold=0.05):
+def neutral_position(head_top, middle_hip, upper_neck, angle_threshold, confidence_threshold=0.05):
     '''
     计算头部与躯干的夹角，判断是否过于前倾.
     :param keypoints: keypoints.
@@ -83,32 +83,15 @@ def neutral_position(keypoints, angle_threshold, confidence_threshold=0.05):
     :param confidence_threshold: keypoints confidence must more than this param, default is 0.05.
     :return: angle between head and body.
     '''
-    # get three keypoints {head_top, middel_hip, upper_neck}
-    head_top = get_coordinate(keypoints, 'head_top')
-    middle_hip = get_coordinate(keypoints, 'middle_hip')
-    upper_neck = get_coordinate(keypoints, 'upper_neck')
-    if head_top[-1] <= confidence_threshold or \
-        middle_hip[-1] <= confidence_threshold or\
-            upper_neck[-1] < confidence_threshold:
-        return 0, False
-    x = head_top[:2] - upper_neck[:2]
-    y = upper_neck[:2] - middle_hip[:2]
+    x = np.array(head_top) - np.array(upper_neck)
+    y = np.array(upper_neck) - np.array(middle_hip)
     angle = cal_angle(x, y)
     return angle, angle > angle_threshold
 
 
-def stand_knee(keypoints, confidence_threshold=0.05):
-    langle, rangle = 0, 0
-    lankle = get_coordinate(keypoints, 'lankle')
-    lknee = get_coordinate(keypoints, 'lknee')
-    lhip = get_coordinate(keypoints, 'lhip')
-    rankle = get_coordinate(keypoints, 'rankle')
-    rknee = get_coordinate(keypoints, 'rknee')
-    rhip = get_coordinate(keypoints, 'rhip')
-    if lankle[-1] > confidence_threshold and lknee[-1] > confidence_threshold and lhip[-1] > confidence_threshold:
-        langle = cal_angle(lhip[:2] - lknee[:2], lankle[:2] - lknee[:2])
-    if rankle[-1] > confidence_threshold and rknee[-1] > confidence_threshold and rhip[-1] > confidence_threshold:
-        rangle = cal_angle(rhip[:2]-rknee[:2], rankle[:2]-rknee[:2])
+def stand_knee(lankle, lknee, lhip, rankle, rknee, rhip):
+    langle = cal_angle(np.array(lhip) - np.array(lknee), np.array(lankle) - np.array(lknee))
+    rangle = cal_angle(np.array(rhip) - np.array(rknee), np.array(rankle) - np.array(rknee))
     return langle, rangle
 
 
@@ -129,45 +112,25 @@ def swing_arm(keypoints, confidence_threshold=0.05):
     return 0 if angle is None else angle
 
 
-def hip_flexibility(keypoints, angle_threshold=70, confidence_threshold=0.05):
-    angle = 0
-    lhip = get_coordinate(keypoints, 'lhip')
-    lknee = get_coordinate(keypoints, 'lknee')
-    rhip = get_coordinate(keypoints, 'rhip')
-    rknee = get_coordinate(keypoints, 'rknee')
-    if lhip[-1] > confidence_threshold and lknee[-1] > confidence_threshold and rhip[-1] > confidence_threshold and rknee[-1] > confidence_threshold:
-        angle = cal_angle(lknee[:2]-lhip[:2], rknee[:2]-rhip[:2])
+def hip_flexibility(lhip, lknee, rhip, rknee, angle_threshold=70):
+    angle = cal_angle(np.array(lknee) - np.array(lhip), np.array(rknee) - np.array(rhip))
     return angle, angle > angle_threshold
 
 
-def leg_angle(keypoints, angle_threshold=25, confidence_threshold=0.05, support_leg='left'):
-    result = (0, False)
-    lhip = get_coordinate(keypoints, 'lhip')
-    lknee = get_coordinate(keypoints, 'lknee')
-    rhip = get_coordinate(keypoints, 'rhip')
-    rknee = get_coordinate(keypoints, 'rknee')
-    if lhip[-1] > confidence_threshold and lknee[-1] > confidence_threshold \
-        and rhip[-1] > confidence_threshold and rknee[-1] > confidence_threshold:
-        if support_leg == 'right':
-            angle = cal_angle_v2(lknee[:2]-lhip[:2], rknee[:2]-rhip[:2])
-        else:
-            angle = cal_angle_v2(rknee[:2]-rhip[:2], lknee[:2]-lhip[:2])
-        result = (angle, angle > angle_threshold)
-    return result
-
-
-
-def stand_point(keypoints, left=True, angle_threshold=70):
-    if left:
-        lhip = np.array(keypoints[keypoints2index['middle_hip']*3: keypoints2index['middle_hip']*3+3])
-        lankle = np.array(keypoints[keypoints2index['lankle']*3: keypoints2index['lankle']*3+3])
-        angle = cal_angle(lhip[:2]-lankle[:2], np.array([1, 0]))
-        return angle, angle > angle_threshold
+def leg_angle(lhip, lknee, rhip, rknee, angle_threshold=25, support_leg='left'):
+    if support_leg == 'right':
+        angle = cal_angle_v2(np.array(lknee) - np.array(lhip), np.array(rknee)-np.array(rhip))
     else:
-        rhip = np.array(keypoints[keypoints2index['middle_hip'] * 3: keypoints2index['middle_hip'] * 3 + 3])
-        rankle = np.array(keypoints[keypoints2index['rankle'] * 3: keypoints2index['rankle'] * 3 + 3])
-        angle = cal_angle(rhip[:2]-rankle[:2], np.array([1, 0]))
-        return angle, angle > angle_threshold
+        angle = cal_angle_v2(np.array(rknee) - np.array(rhip), np.array(lknee) - np.array(lhip))
+    return angle, angle > angle_threshold
+
+
+def stand_point(hip, ankle, left=True, angle_threshold=70):
+    if left:
+        angle = cal_angle(np.array(hip)-np.array(ankle), np.array([1, 0]))
+    else:
+        angle = cal_angle(np.array(hip)-np.array(ankle), np.array([1, 0]))
+    return angle, angle > angle_threshold
 
 
 def vertical_amplitude(keypoints, confidence_threshold=0.05):
@@ -337,38 +300,56 @@ if __name__ == '__main__':
                 min_shoulder_angle = min(min_shoulder_angle, angle)
             '''
             # 中立位角
-            anlge, flag = neutral_position(data[i]['keypoints'], angle_threshold=10)
+            anlge, flag = neutral_position(keypoint_data[keypoints2index['head_top']][i], keypoint_data[keypoints2index['middle_hip']][i], keypoint_data[keypoints2index['upper_neck']][i], angle_threshold=10)
             if flag:
                 frame = put_text(frame, '中立位角:%.2f, 前倾过度' % anlge, (20, 20), font_size, red)
             else:
                 frame = put_text(frame, '中立位角:%.2f' % anlge, (20, 20), font_size, blue)
 
             # 髋关节灵活性
-            angle, flag = hip_flexibility(keypoints=data[i]['keypoints'])
+            angle, flag = hip_flexibility(lhip=keypoint_data[keypoints2index['lhip']][i],
+                                          lknee=keypoint_data[keypoints2index['lknee']][i],
+                                          rhip=keypoint_data[keypoints2index['rhip']][i],
+                                          rknee=keypoint_data[keypoints2index['rknee']][i])
             hip_angle_list.append(angle)
             frame = put_text(frame, '髋关节角: %.2f, 最大值: %.2f' % (angle, max(hip_angle_list)), (20, 80), font_size, blue)
 
-            if len(left_foot_stand_frame_indexes) > 0 and i >= left_foot_stand_frame_indexes[lindex][0] -5 and i < left_foot_stand_frame_indexes[lindex][0]:
-
-                langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+            if len(left_foot_stand_frame_indexes) > 0 \
+                    and left_foot_stand_frame_indexes[lindex][0]-5 <= i < left_foot_stand_frame_indexes[lindex][0]:
+                langle, rangle = stand_knee(lankle=keypoint_data[keypoints2index['lankle']][i],
+                                            lknee=keypoint_data[keypoints2index['lknee']][i],
+                                            lhip=keypoint_data[keypoints2index['lhip']][i],
+                                            rankle=keypoint_data[keypoints2index['rankle']][i],
+                                            rknee=keypoint_data[keypoints2index['rknee']][i],
+                                            rhip=keypoint_data[keypoints2index['rhip']][i])
                 frame = put_text(frame, '落地伸膝角: %.2f %s' % (langle, '过大' if langle > 165 else ''), (20, 50), font_size, red if langle > 165 else blue)
                 stand_knee_list.append(langle)
 
-                angle, flag_ = stand_point(data[i]['keypoints'], angle_threshold=70, left=True)
+                angle, flag_ = stand_point(ankle=keypoint_data[keypoints2index['lankle']][i],
+                                           hip=keypoint_data[keypoints2index['lhip']][i],
+                                           angle_threshold=70, left=True)
                 frame = put_text(frame, '落地角:%.2f %s' % (angle, '落地点靠前' if flag_ else ''), (20, 170), font_size,
                                  red if flag_ else blue)
                 stand_point_list.append(angle)
 
-            if len(left_foot_stand_frame_indexes) > 0 and left_foot_stand_frame_indexes[lindex][0] <= i and left_foot_stand_frame_indexes[lindex][1] >= i :
+            if len(left_foot_stand_frame_indexes) > 0 and \
+                    left_foot_stand_frame_indexes[lindex][0] <= i <= left_foot_stand_frame_indexes[lindex][1] :
 
                 frame = put_text(frame, '左脚落地', (20, 110), font_size, red)
 
                 if i == left_foot_stand_frame_indexes[lindex][0]:
-                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+                    langle, rangle = stand_knee(lankle=keypoint_data[keypoints2index['lankle']][i],
+                                                lknee=keypoint_data[keypoints2index['lknee']][i],
+                                                lhip=keypoint_data[keypoints2index['lhip']][i],
+                                                rankle=keypoint_data[keypoints2index['rankle']][i],
+                                                rknee=keypoint_data[keypoints2index['rknee']][i],
+                                                rhip=keypoint_data[keypoints2index['rhip']][i])
                     stand_knee_list.append(langle)
                     frame = put_text(frame, '落地伸膝角: %.2f %s, 最大值: %.2f' % (langle, '过大' if langle > 165 else '', max(stand_knee_list)), (20, 50), font_size, red if langle > 165 else blue)
                     stand_knee_list = []
-                    angle, flag_ = stand_point(data[i]['keypoints'], angle_threshold=70, left=True)
+                    angle, flag_ = stand_point(hip=keypoint_data[keypoints2index['lhip']][i],
+                                               ankle=keypoint_data[keypoints2index['lankle']][i],
+                                               angle_threshold=70, left=True)
                     stand_point_list.append(angle)
                     frame = put_text(frame, '落地角: %.2f %s, 最小值: %.2f' % (
                     angle, '落地点靠前' if flag_ else '', min(stand_point_list)), (20, 170), font_size,
@@ -376,7 +357,11 @@ if __name__ == '__main__':
                     stand_point_list = []
 
                 if i == left_foot_stand_frame_indexes[lindex][2]:
-                    angle, flag = leg_angle(data[i]['keypoints'], angle_threshold=25, support_leg='left')
+                    angle, flag = leg_angle(lhip=keypoint_data[keypoints2index['lhip']][i],
+                                            lknee=keypoint_data[keypoints2index['lknee']][i],
+                                            rhip=keypoint_data[keypoints2index['rhip']][i],
+                                            rknee=keypoint_data[keypoints2index['rknee']][i],
+                                            angle_threshold=25, support_leg='left')
 
                     if flag:
                         frame = put_text(frame, '收腿角:%.2f, 收腿太慢' % angle, (20, 140), font_size, red)
@@ -385,33 +370,54 @@ if __name__ == '__main__':
                 if i == left_foot_stand_frame_indexes[lindex][1] and lindex < len(left_foot_stand_frame_indexes) - 1:
                     lindex += 1
 
-            if len(right_foot_stand_frame_indexes) > 0 and i >= right_foot_stand_frame_indexes[rindex][0] -5 and i < right_foot_stand_frame_indexes[rindex][0]:
-                langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+            if len(right_foot_stand_frame_indexes) > 0 and \
+                    right_foot_stand_frame_indexes[rindex][0]-5 <= i < right_foot_stand_frame_indexes[rindex][0]:
+                langle, rangle = stand_knee(lankle=keypoint_data[keypoints2index['lhip']][i],
+                                            lknee=keypoint_data[keypoints2index['lknee']][i],
+                                            lhip=keypoint_data[keypoints2index['lhip']][i],
+                                            rankle=keypoint_data[keypoints2index['rankle']][i],
+                                            rknee=keypoint_data[keypoints2index['rknee']][i],
+                                            rhip=keypoint_data[keypoints2index['rhip']][i])
                 frame = put_text(frame, '落地伸膝角: %.2f %s' % (rangle, '过大' if rangle > 165 else ''), (20, 50), font_size, red if rangle > 165 else blue)
                 stand_knee_list.append(rangle)
 
-                angle, flag_ = stand_point(data[i]['keypoints'], angle_threshold=70, left=False)
+                angle, flag_ = stand_point(ankle=keypoint_data[keypoints2index['rankle']][i],
+                                           hip=keypoint_data[keypoints2index['rhip']][i],
+                                           angle_threshold=70, left=False)
                 stand_point_list.append(angle)
                 frame = put_text(frame, '落地角:%.2f %s' % (angle, '落地点靠前' if flag_ else ''), (20, 170), font_size,
                                  red if flag_ else blue)
 
-            if len(right_foot_stand_frame_indexes) > 0 and right_foot_stand_frame_indexes[rindex][0] <= i and right_foot_stand_frame_indexes[rindex][1] >= i:
+            if len(right_foot_stand_frame_indexes) > 0 and \
+                    right_foot_stand_frame_indexes[rindex][0] <= i <= right_foot_stand_frame_indexes[rindex][1]:
 
                 frame = put_text(frame, '右脚落地', (20, 110), font_size, red)
 
                 if i == right_foot_stand_frame_indexes[rindex][0]:
-                    langle, rangle = stand_knee(keypoints=data[i]['keypoints'])
+                    langle, rangle = stand_knee(lankle=keypoint_data[keypoints2index['lankle']][i],
+                                                lknee=keypoint_data[keypoints2index['lknee']][i],
+                                                lhip=keypoint_data[keypoints2index['lhip']][i],
+                                                rankle=keypoint_data[keypoints2index['rankle']][i],
+                                                rknee=keypoint_data[keypoints2index['rknee']][i],
+                                                rhip=keypoint_data[keypoints2index['rhip']][i])
+
                     stand_knee_list.append(rangle)
                     frame = put_text(frame, '落地伸膝角: %.2f %s, 最大值: %.2f' % (rangle, '过大' if rangle > 165 else '', max(stand_knee_list)), (20, 50), font_size, red if rangle > 165 else blue)
                     stand_knee_list = []
 
                 if i == right_foot_stand_frame_indexes[rindex][2]:
-                    angle, flag = leg_angle(data[i]['keypoints'], angle_threshold=25, support_leg='right')
+                    angle, flag = leg_angle(lhip=keypoint_data[keypoints2index['lhip']][i],
+                                            lknee=keypoint_data[keypoints2index['lknee']][i],
+                                            rhip=keypoint_data[keypoints2index['rhip']][i],
+                                            rknee=keypoint_data[keypoints2index['rknee']][i],
+                                            support_leg='right')
                     if flag:
                         frame = put_text(frame, '收腿角:%.2f,  收腿太慢' % angle, (20, 140), font_size, red)
                     else:
                         frame = put_text(frame, '收腿角:%.2f' % angle, (20, 140), font_size, red)
-                    angle, flag_ = stand_point(data[i]['keypoints'], angle_threshold=70, left=False)
+                    angle, flag_ = stand_point(ankle=keypoint_data[keypoints2index['rankle']][i],
+                                               hip=keypoint_data[keypoints2index['rhip']][i],
+                                               angle_threshold=70, left=False)
                     frame = put_text(frame, '落地角:%.2f' % angle, (20, 170), font_size, red)
                     if not flag_:
                         frame = put_text(frame, '落地角:%.2f, 落地点靠前' % angle, (20, 170), font_size, red)
