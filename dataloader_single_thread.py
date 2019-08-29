@@ -305,8 +305,12 @@ class DetectionLoader:
                 inps = torch.zeros(boxes_k.size(0), 3, opt.inputResH, opt.inputResW)
                 pt1 = torch.zeros(boxes_k.size(0), 2)
                 pt2 = torch.zeros(boxes_k.size(0), 2)
-
+                self.cal_scores(scores, boxes_k)
                 self.Q.append((orig_img[k], im_name[k], boxes_k[np.argmax(scores):np.argmax(scores)+1], scores[np.argmax(scores)], inps[np.argmax(scores):np.argmax(scores)+1], pt1[np.argmax(scores):np.argmax(scores)+1], pt2[np.argmax(scores):np.argmax(scores)+1]))
+
+    def cal_scores(self, scores, boxes, ):
+        for i in range(boxes.shape[0]):
+            scores[i][0] *= (abs(boxes[i][0]-boxes[i][2]) * abs(boxes[i][1]-boxes[i][3]))
 
     def read(self):
         # return next frame in the queue
@@ -543,9 +547,9 @@ class DataWriter:
             # initialize the file video stream along with the boolean
             # used to indicate if the thread should be stopped or not
             self.stream = cv2.VideoWriter(savepath, fourcc, fps, frameSize)
-            self.stream_black = cv2.VideoWriter('examples/res/1.avi', fourcc, fps, frameSize)
+            # self.stream_black = cv2.VideoWriter('examples/res/1.avi', fourcc, fps, frameSize)
             assert self.stream.isOpened(), 'Cannot open video for writing'
-            assert self.stream_black.isOpened(), 'Cannot open video for writing'
+            # assert self.stream_black.isOpened(), 'Cannot open video for writing'
         self.save_video = save_video
         self.stopped = False
         self.final_result = []
