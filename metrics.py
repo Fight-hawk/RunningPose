@@ -119,9 +119,9 @@ def hip_flexibility(lhip, lknee, rhip, rknee, angle_threshold=70):
 
 def leg_angle(lhip, lknee, rhip, rknee, angle_threshold=25, support_leg='left'):
     if support_leg == 'right':
-        angle = cal_angle_v2(np.array(lknee) - np.array(lhip), np.array(rknee)-np.array(rhip))
+        angle = cal_angle_v2(np.array(rknee)-np.array(rhip), np.array(lknee) - np.array(lhip))
     else:
-        angle = cal_angle_v2(np.array(rknee) - np.array(rhip), np.array(lknee) - np.array(lhip))
+        angle = cal_angle_v2(np.array(lknee) - np.array(lhip), np.array(rknee) - np.array(rhip))
     return angle, angle > angle_threshold
 
 
@@ -130,7 +130,7 @@ def stand_point(hip, ankle, left=True, angle_threshold=70):
         angle = cal_angle(np.array(hip)-np.array(ankle), np.array([1, 0]))
     else:
         angle = cal_angle(np.array(hip)-np.array(ankle), np.array([1, 0]))
-    return angle, angle > angle_threshold
+    return angle, angle < angle_threshold
 
 
 def vertical_amplitude(keypoints, confidence_threshold=0.05):
