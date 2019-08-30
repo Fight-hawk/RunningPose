@@ -220,7 +220,7 @@ class VideoLoader:
         # stream = cv2.VideoCapture(self.path)
         fourcc=int(self.stream.get(cv2.CAP_PROP_FOURCC))
         fps=self.stream.get(cv2.CAP_PROP_FPS)
-        frameSize=(int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)) // 2, int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT)) // 2)
+        frameSize=(int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)) // int(2 if opt.resize else 1), int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT)) // int(2 if opt.resize else 1))
         return (fourcc,fps,frameSize)
 
     def getitem(self):
@@ -546,6 +546,7 @@ class DataWriter:
         if save_video:
             # initialize the file video stream along with the boolean
             # used to indicate if the thread should be stopped or not
+            # print(frameSize)
             self.stream = cv2.VideoWriter(savepath, fourcc, fps, frameSize)
             # self.stream_black = cv2.VideoWriter('examples/res/1.avi', fourcc, fps, frameSize)
             assert self.stream.isOpened(), 'Cannot open video for writing'
