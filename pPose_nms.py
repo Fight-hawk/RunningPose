@@ -111,6 +111,9 @@ def pose_nms(bboxes, bbox_scores, pose_preds, pose_scores):
         # if (1.5 ** 2 * (xmax - xmin) * (ymax - ymin) < areaThres):
         #     continue
 
+        if (ymax - ymin) < 180:
+            continue
+
         final_result.append({
             'keypoints': merge_pose - 0.3,
             'kp_score': merge_score,

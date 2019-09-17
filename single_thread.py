@@ -96,4 +96,5 @@ if __name__ == "__main__":
             runtime_profile['pn'].append(post_time)
     writer.start()
     final_result = writer.results()
-    write_json(final_result, os.path.join(args.outputpath, ntpath.basename(args.video).split('.')[0] + '.json'))
+    for l, result in enumerate(final_result):
+        write_json(result['list'], os.path.join(args.outputpath, ntpath.basename(args.video).split('.')[0] + str(l) + '.json'))

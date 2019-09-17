@@ -305,8 +305,8 @@ class DetectionLoader:
                 inps = torch.zeros(boxes_k.size(0), 3, opt.inputResH, opt.inputResW)
                 pt1 = torch.zeros(boxes_k.size(0), 2)
                 pt2 = torch.zeros(boxes_k.size(0), 2)
-                self.cal_scores(scores, boxes_k)
-                self.Q.append((orig_img[k], im_name[k], boxes_k[np.argmax(scores):np.argmax(scores)+1], scores[np.argmax(scores)], inps[np.argmax(scores):np.argmax(scores)+1], pt1[np.argmax(scores):np.argmax(scores)+1], pt2[np.argmax(scores):np.argmax(scores)+1]))
+                # self.cal_scores(scores, boxes_k)
+                self.Q.append((orig_img[k], im_name[k], boxes_k, scores[dets[:,0]==k], inps, pt1, pt2))
 
     def cal_scores(self, scores, boxes, ):
         for i in range(boxes.shape[0]):
@@ -566,44 +566,124 @@ class DataWriter:
                 os.makedirs(os.path.join(opt.outputpath, 'json'))
         self.index = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26]
 
+        self.test_results = []
+
     def start(self):
         # start a thread to read frames from the file video stream
         self.update()
 
     def update(self):
-        started = False
         for i in range(len(self.Q)):
             (boxes, scores, hm_data, pt1, pt2, orig_img, im_name) = self.Q[i]
             orig_img = np.array(orig_img, dtype=np.uint8)
             img = orig_img
             if boxes is None or boxes.nelement() == 0:
-                if started:
-                    break
-                result = {
-                    'imgname': im_name,
-                    'result': None
-                }
-                # self.final_result.append(result)
+                pass
             else:
-                started = True
                 preds_hm, preds_img, preds_scores = getPrediction(
                     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
-                for i in self.index:
-                    if preds_scores[0][i][0] < 0.05 and opt.addFilter:
-                        break
+                low_confidence_ids = []
+                for m in range(preds_scores.shape[0]):
+                    for j in self.index:
+                        if preds_scores[m][j][0] < 0.05 and opt.addFilter:
+                            low_confidence_ids.append(m)
+                            break
+
+                result = pose_nms(
+                    boxes, scores, preds_img, preds_scores)
+                for id in low_confidence_ids:
+                    result.pop(id)
+                if len(self.test_results) == 0:
+                    for k, r in enumerate(result):
+                        height = abs(r['keypoints'][24][1] - r['keypoints'][23][1])
+                        self.test_results.append({'height': [height], 'continued': True, 'list':[{'result':[result], 'imgname':im_name}]})
                 else:
-                    result = pose_nms(
-                        boxes, scores, preds_img, preds_scores)
-                    result = {
-                        'imgname': im_name,
-                        'result': result
-                    }
-                    self.final_result.append(result)
-                    if opt.save_video:
-                        img = orig_img
-                        if opt.vis:
-                            img, _ = vis_frame(orig_img, result)
-                        self.stream.write(img)
+                    # 首先判断 已经保存的人数 和当前帧检测到的人数关系
+                    # 如果相等 则按照1对1处理
+                    if len(self.test_results) == len(result):
+                        picked = []
+                        for k, r1 in enumerate(result):
+                            min_v = 1000000000
+                            min_idx = None
+                            for l, r2 in enumerate(self.test_results):
+                                if l not in picked:
+                                    dis = abs(abs(r1['keypoints'][24][1] - r1['keypoints'][23][1]) - r2['height'][-1])
+                                    if dis < min_v:
+                                        min_v = dis
+                                        min_idx = l
+                            if min_idx is not None:
+                                picked.append(min_idx)
+                                self.test_results[min_idx]['height'].append(abs(r1['keypoints'][24][1] - r1['keypoints'][23][1]))
+                                self.test_results[min_idx]['list'].append({'result':[r1], 'imgname':im_name})
+                    # 如果当前帧检测到的人多
+                    elif len(self.test_results) <= len(result):
+                        picked = []
+                        for k, r1 in enumerate(self.test_results):
+                            min_v = 1000000000
+                            min_idx = None
+                            for l, r2 in enumerate(result):
+                                if l not in picked:
+                                    dis = abs(abs(r2['keypoints'][24][1] - r2['keypoints'][23][1]) - r1['height'][-1])
+                                    if dis < min_v:
+                                        min_v = dis
+                                        min_idx = l
+                            if min_idx is not None:
+                                picked.append(min_idx)
+                                r1['height'].append(min_v)
+                        for k in range(len(result)):
+                            if k not in picked:
+                                height = abs(result[k]['keypoints'][24][1] - result[k]['keypoints'][23][1])
+                                self.test_results.append({'height': [height], 'continued': True, 'list':[{'result':[result[k]], 'imgname': im_name}]})
+                    # 如果当前检测到的人少
+                    else:
+                        picked = []
+                        for k, r1 in enumerate(result):
+                            min_v = 1000000000
+                            min_idx = None
+                            for l, r2 in enumerate(self.test_results):
+                                dis = abs(abs(r1['keypoints'][24][1] - r1['keypoints'][23][1]) - r2['height'][-1])
+                                if dis < min_v:
+                                    min_v = dis
+                                    min_idx = l
+                            if min_idx is not None:
+                                picked.append(min_idx)
+                                self.test_results[min_idx]['height'].append(min_v)
+                                self.test_results[min_idx]['list'].append({'result':[r1], 'imgname':im_name})
+                        delete_ids = []
+                        for k in range(len(self.test_results)):
+                            if k not in picked:
+                                if isinstance(self.test_results[k]['continued'], bool):
+                                    if self.test_results[k]['continued']:
+                                        self.test_results[k]['continued'] = 1
+                                elif isinstance(self.test_results[k]['continued'], int):
+                                    if self.test_results[k]['continued'] >= 2:
+                                        delete_ids.append(k)
+                                    else:
+                                        self.test_results[k]['continued'] += 1
+                        for id in delete_ids:
+                            self.test_results.pop(id)
+
+                # started = True
+                # preds_hm, preds_img, preds_scores = getPrediction(
+                #     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
+                # for i in self.index:
+                #     if preds_scores[0][i][0] < 0.05 and opt.addFilter:
+                #         break
+                # else:
+                #     result = pose_nms(
+                #         boxes, scores, preds_img, preds_scores)
+                #     result = {
+                #         'imgname': im_name,
+                #         'result': result
+                #     }
+                #     self.final_result.append(result)
+                #     if opt.save_video:
+                #         img = orig_img
+                #         if opt.vis:
+                #             img, _ = vis_frame(orig_img, result)
+                #         self.stream.write(img)
+
+        print(len(self.test_results))
 
 
 
@@ -618,7 +698,7 @@ class DataWriter:
 
     def results(self):
         # return final result
-        return self.final_result
+        return self.test_results
 
     def len(self):
         # return queue len
