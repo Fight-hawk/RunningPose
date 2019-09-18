@@ -566,17 +566,15 @@ class DataWriter:
         self.update()
 
     def update(self):
-        started = False
         for i in range(len(self.Q)):
             (boxes, scores, hm_data, pt1, pt2, orig_img, im_name) = self.Q[i]
             orig_img = np.array(orig_img, dtype=np.uint8)
-            img = orig_img
             if boxes is None or boxes.nelement() == 0:
                 pass
-                # self.final_result.append(result)
             else:
                 preds_hm, preds_img, preds_scores = getPrediction(
                     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
+
                 result = pose_nms(
                     boxes, scores, preds_img, preds_scores)
                 result = {
