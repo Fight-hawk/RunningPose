@@ -196,11 +196,6 @@ class VideoLoader:
                 # reached the end of the video file
                 if not grabbed:
                     return
-                # process and add the frame to the queue
-                if opt.resize:
-                    frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
-                if opt.flip:
-                    frame = cv2.flip(frame, flipCode=1)
                 img_k, orig_img_k, im_dim_list_k = prep_frame(frame, inp_dim)
             
                 img.append(img_k)
@@ -308,9 +303,9 @@ class DetectionLoader:
                 self.cal_scores(scores, boxes_k)
                 self.Q.append((orig_img[k], im_name[k], boxes_k[np.argmax(scores):np.argmax(scores)+1], scores[np.argmax(scores)], inps[np.argmax(scores):np.argmax(scores)+1], pt1[np.argmax(scores):np.argmax(scores)+1], pt2[np.argmax(scores):np.argmax(scores)+1]))
 
-    def cal_scores(self, scores, boxes, ):
+    def cal_scores(self, scores, boxes):
         for i in range(boxes.shape[0]):
-            scores[i][0] *= (abs(boxes[i][0]-boxes[i][2]) * abs(boxes[i][1]-boxes[i][3]))
+            scores[i][0] *= abs(boxes[i][1]-boxes[i][3])
 
     def read(self):
         # return next frame in the queue
@@ -577,33 +572,23 @@ class DataWriter:
             orig_img = np.array(orig_img, dtype=np.uint8)
             img = orig_img
             if boxes is None or boxes.nelement() == 0:
-                if started:
-                    break
-                result = {
-                    'imgname': im_name,
-                    'result': None
-                }
+                pass
                 # self.final_result.append(result)
             else:
-                started = True
                 preds_hm, preds_img, preds_scores = getPrediction(
                     hm_data, pt1, pt2, opt.inputResH, opt.inputResW, opt.outputResH, opt.outputResW)
-                for i in self.index:
-                    if preds_scores[0][i][0] < 0.05 and opt.addFilter:
-                        break
-                else:
-                    result = pose_nms(
-                        boxes, scores, preds_img, preds_scores)
-                    result = {
-                        'imgname': im_name,
-                        'result': result
-                    }
-                    self.final_result.append(result)
-                    if opt.save_video:
-                        img = orig_img
-                        if opt.vis:
-                            img, _ = vis_frame(orig_img, result)
-                        self.stream.write(img)
+                result = pose_nms(
+                    boxes, scores, preds_img, preds_scores)
+                result = {
+                    'imgname': im_name,
+                    'result': result
+                }
+                self.final_result.append(result)
+                if opt.save_video:
+                    img = orig_img
+                    if opt.vis:
+                        img, _ = vis_frame(orig_img, result)
+                    self.stream.write(img)
 
 
 

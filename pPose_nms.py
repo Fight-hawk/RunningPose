@@ -110,6 +110,8 @@ def pose_nms(bboxes, bbox_scores, pose_preds, pose_scores):
 
         # if (1.5 ** 2 * (xmax - xmin) * (ymax - ymin) < areaThres):
         #     continue
+        if (ymax-ymin) < 180:
+            continue
 
         final_result.append({
             'keypoints': merge_pose - 0.3,
@@ -376,3 +378,7 @@ def write_json(all_results, outputpath, for_eval=False):
             print(len(json_results))
             json_file.write(json.dumps(json_results))
 
+'''
+1.处理现有跑姿视频，解决丢帧、无关键点识别结果、翻转问题。
+2.初步完成多人场景跑姿识别，效果尚可，有待提高。
+'''
