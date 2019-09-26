@@ -1,6 +1,12 @@
+import json
+import os
 import matplotlib
 import math
 matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import signal
+import cv2
 
 """Detect peaks in data based on their amplitude and other features."""
 
@@ -24,7 +30,6 @@ keypoints2index = {
 
 }
 
-
 def merge(list):
     res = []
     if(len(list) <= 0):
@@ -47,7 +52,6 @@ def merge(list):
                 res.append(l)
             l = []
     return res
-
 
 def locate_zone(data,length):
     lenlist = []
@@ -111,7 +115,7 @@ def locate(zone,length,ankle,knee):
     for i in range(len(ranges)):
         minx = 100000
         minindex = -1
-        for j in range(ranges[i][0], ranges[i][1] + 1):
+        for j in range(ranges[i][0],ranges[i][1] + 1):
             if j in ankle and j in knee:
                 dx = ankle[j][0] - knee[j][0]
                 if dx < 0:
@@ -121,11 +125,10 @@ def locate(zone,length,ankle,knee):
             if dx < minx:
                 minx = dx
                 minindex = j
-        result.append((ranges[i][0], ranges[i][1], minindex))
+        result.append((ranges[i][0],ranges[i][1],minindex))
     return result
 
-
-def locate_frame(keypoint_data, length):
+def locate_frame(keypoint_data,length):
     if(length == 0):
         return []
     left = locate_zone(keypoint_data[keypoints2index['lankle']],length)
@@ -136,5 +139,79 @@ def locate_frame(keypoint_data, length):
     print(r)
     return (l,r)
 
+def tread_locate_zone(data,length):
+    buffer = []
+    bsize = 7
+    hbsize = int(bsize/2)
+    result = []
+    i = 0
+    while i < length:
+        buffer.append(i)
+        if len(buffer) > bsize:
+            del(buffer[0])
+        b = True
+        if len(buffer) == bsize:
+            if buffer[hbsize] in data:
+                for j in range(bsize):
+                    if j != hbsize and buffer[j] in data:
+                        if data[buffer[j]][0] > data[buffer[hbsize]][0]:
+                            b = False
+                            break
+            else:
+                b = False
+        else:
+            b = False
+        if b:
+            max = -100000
+            start = buffer[hbsize]
+            for j in range(hbsize,bsize):
+                if data[buffer[j]][1] > max:
+                    max = data[buffer[j]][1]
+            for j in range(buffer[bsize-1]+1,length):
+                if data[j][1] > max:
+                    if j + 1 < length and data[j+1][1] > max:
+                        end = j
+                        result.append((start,end))
+                        buffer = []
+                        i = j + 1
+                        break
+        i += 1
+    return result
 
+def tread_locate(zone, length, ankle, knee):
+    result = []
+    for i in range(len(zone)):
+        minx = 100000
+        minindex = -1
+        for j in range(zone[i][0], zone[i][1] + 1):
+            if j in ankle and j in knee:
+                dx = knee[j][0] - ankle[j][0]
+                if dx < 0:
+                    dx = 100000
+            else:
+                continue
+            if dx < minx:
+                minx = dx
+                minindex = j
+        result.append((zone[i][0], zone[i][1], minindex))
+    return result
+
+
+
+
+
+
+
+
+
+def tread_locate_frame(keypoint_data,length):
+    if(length == 0):
+        return []
+    left = tread_locate_zone(keypoint_data[keypoints2index['lankle']], length)
+    right = tread_locate_zone(keypoint_data[keypoints2index['rankle']], length)
+    l = tread_locate(left, length, keypoint_data[keypoints2index['lankle']], keypoint_data[keypoints2index['lknee']])
+    r = tread_locate(right, length, keypoint_data[keypoints2index['rankle']], keypoint_data[keypoints2index['rknee']])
+    print(l)
+    print(r)
+    return (l, r)
 

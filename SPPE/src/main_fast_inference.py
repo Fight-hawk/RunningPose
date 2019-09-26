@@ -61,12 +61,9 @@ class InferenNet_fast(nn.Module):
         model.load_state_dict(torch.load('./models/sppe/duc_se.pth'))
         model.eval()
         self.pyranet = model
-
         self.dataset = dataset
 
     def forward(self, x):
         out = self.pyranet(x)
-        # print(out.shape)
-        # out = out.narrow(1, 0, 17)
 
         return out

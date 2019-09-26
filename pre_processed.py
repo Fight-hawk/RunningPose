@@ -23,5 +23,4 @@ with open('./examples/res/jiulin.json', 'w', encoding='utf-8') as w:
                 j += 1
                 if j >= len(result):
                     finished = True
-
     json.dump(data, w)

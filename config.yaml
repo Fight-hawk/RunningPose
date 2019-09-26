@@ -1,0 +1,18 @@
+General:
+  dataset: 'coco'
+Model:
+  nClasses: 33
+  nStack: 4
+Hyperparameter:
+  fast_inference: true
+Detection:
+  net: 'res152'
+  mode: 'normal'
+  outdir: '../result0925'
+  nms: 0.6
+  detbatch: 1
+  posebathch: 80
+Video:
+  video: ''
+  save_video: true
+  vis_fast: true
